@@ -1,0 +1,143 @@
+-- =========================================================
+-- Project Data Analysis for E-Commerce
+-- Database  : E-Commerce
+-- Author    : Ananda Pradewa Dyah Kurniawan Putra
+-- =========================================================
+
+-- 10 Transaksi terbesar user 12476
+SELECT seller_id,
+       buyer_id,
+       total AS nilai_transaksi,
+       created_at AS tanggal_transaksi
+FROM project.orders
+WHERE buyer_id = 12476
+ORDER BY 3 DESC
+LIMIT 10;
+
+-- Transaksi per bulan
+SELECT FORMAT_DATE('%Y%m', DATE(created_at)) AS tahun_bulan,
+       COUNT(1) AS jumlah_transaksi,
+       SUM(total) AS total_nilai_transaksi
+FROM project.orders
+WHERE DATE(created_at) >= '2020-01-01'
+GROUP BY 1
+ORDER BY 1;
+
+-- Pengguna dengan rata-rata transaksi terbesar di Januari 2020
+SELECT buyer_id,
+       COUNT(1) AS jumlah_transaksi,
+       AVG(total) AS avg_nilai_transaksi
+FROM project.orders
+WHERE DATE(created_at) >= '2020-01-01'
+  AND DATE(created_at) < '2020-02-01'
+GROUP BY 1
+HAVING COUNT(1) >= 2
+ORDER BY 3 DESC
+LIMIT 10;
+
+-- Transaksi besar di Desember 2019
+SELECT nama_user AS nama_pembeli,
+       total AS nilai_transaksi,
+       created_at AS tanggal_transaksi
+FROM project.orders
+INNER JOIN project.users
+ON buyer_id = user_id
+WHERE DATE(created_at) >= '2019-12-01'
+  AND DATE(created_at) < '2020-01-01'
+  AND total >= 20000000
+ORDER BY 1;
+
+-- Kategori Produk Terlaris di 2020
+SELECT category,
+       SUM(quantity) AS total_quantity,
+       SUM(quantity * price) AS total_price
+FROM project.orders
+INNER JOIN project.order_details USING(order_id)
+INNER JOIN project.product USING(product_id)
+WHERE DATE(created_at) >= '2020-01-01'
+  AND delivery_at IS NOT NULL
+GROUP BY 1
+ORDER BY 2 DESC
+LIMIT 5;
+
+-- Mencari pembeli high value
+SELECT nama_user AS nama_pembeli,
+       COUNT(1) AS jumlah_transaksi,
+       SUM(total) AS total_nilai_transaksi,
+       MIN(total) AS min_nilai_transaksi
+FROM project.orders
+INNER JOIN project.users
+ON buyer_id = user_id
+GROUP BY user_id, nama_user
+HAVING COUNT(1) > 5
+   AND MIN(total) > 2000000
+ORDER BY 3 DESC;
+
+-- Mencari Dropshipper
+SELECT nama_user AS nama_pembeli,
+       COUNT(1) AS jumlah_transaksi,
+       COUNT(DISTINCT o.kodepos) AS distinct_kodepos,
+       SUM(total) AS total_nilai_transaksi,
+       AVG(total) AS avg_nilai_transaksi
+FROM project.orders o
+INNER JOIN project.users u
+ON o.buyer_id = u.user_id
+GROUP BY user_id, nama_user
+HAVING COUNT(1) >= 10
+   AND COUNT(1) = COUNT(DISTINCT o.kodepos)
+ORDER BY 2 DESC;
+
+-- Mencari Reseller Offline
+SELECT nama_user AS nama_pembeli,
+       COUNT(1) AS jumlah_transaksi,
+       SUM(total) AS total_nilai_transaksi,
+       AVG(total) AS avg_nilai_transaksi,
+       AVG(total_quantity) AS avg_quantity_per_transaksi
+FROM project.orders o
+INNER JOIN project.users u
+ON o.buyer_id = u.user_id
+INNER JOIN (
+    SELECT order_id,
+           SUM(quantity) AS total_quantity
+    FROM project.order_details
+    GROUP BY 1
+) AS summary_order
+USING(order_id)
+WHERE o.kodepos = u.kodepos
+GROUP BY user_id, nama_user
+HAVING COUNT(1) >= 8
+   AND AVG(total_quantity) > 10
+ORDER BY 3 DESC;
+
+-- Pembeli sekaligus penjual
+SELECT nama_user AS nama_pengguna,
+       jumlah_transaksi_beli,
+       jumlah_transaksi_jual
+FROM project.users
+INNER JOIN (
+    SELECT buyer_id,
+           COUNT(1) AS jumlah_transaksi_beli
+    FROM project.orders
+    GROUP BY 1
+) AS buyer
+ON buyer_id = user_id
+INNER JOIN (
+    SELECT seller_id,
+           COUNT(1) AS jumlah_transaksi_jual
+    FROM project.orders
+    GROUP BY 1
+) AS seller
+ON seller_id = user_id
+WHERE jumlah_transaksi_beli >= 7
+ORDER BY 1;
+
+-- Lama transaksi dibayar
+SELECT FORMAT_DATE('%Y%m', DATE(created_at)) AS tahun_bulan,
+       COUNT(1) AS jumlah_transaksi,
+       AVG(DATE_DIFF(DATE(paid_at), DATE(created_at), DAY)) AS avg_lama_dibayar,
+       MIN(DATE_DIFF(DATE(paid_at), DATE(created_at), DAY)) AS min_lama_dibayar,
+       MAX(DATE_DIFF(DATE(paid_at), DATE(created_at), DAY)) AS max_lama_dibayar
+FROM project.orders
+WHERE paid_at IS NOT NULL
+GROUP BY 1
+ORDER BY 1;
